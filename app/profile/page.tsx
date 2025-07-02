@@ -1,0 +1,659 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+  UserCircleIcon, 
+  PencilIcon, 
+  PhotoIcon,
+  MapPinIcon,
+  CalendarIcon,
+  HeartIcon,
+  StarIcon,
+  SparklesIcon,
+  CheckIcon,
+  ExclamationTriangleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  ShieldCheckIcon
+} from '@heroicons/react/24/outline';
+import { useAuth } from '@/lib/useAuth';
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState('profile');
+  const [isEditing, setIsEditing] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [profileData, setProfileData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+    location: '',
+    bio: '',
+    interests: [] as string[],
+    avatar: '',
+    coverPhoto: '',
+    socialMedia: {
+      instagram: '',
+      twitter: '',
+      tiktok: '',
+      youtube: ''
+    }
+  });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saveMessage, setSaveMessage] = useState('');
+
+  // Available interests for fans
+  const availableInterests = [
+    'Music', 'Movies', 'TV Shows', 'Sports', 'Fashion', 'Beauty', 'Gaming',
+    'Technology', 'Travel', 'Food', 'Fitness', 'Art', 'Photography', 'Comedy',
+    'Dance', 'Theater', 'Books', 'Podcasts', 'Streaming', 'Social Media'
+  ];
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/auth/fan/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Load user data when component mounts
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        dateOfBirth: user.dateOfBirth || '',
+        location: user.location || '',
+        bio: user.bio || '',
+        interests: user.interests || [],
+        avatar: user.avatar || '',
+        coverPhoto: user.coverPhoto || '',
+        socialMedia: {
+          instagram: user.socialMedia?.instagram || '',
+          twitter: user.socialMedia?.twitter || '',
+          tiktok: user.socialMedia?.tiktok || '',
+          youtube: user.socialMedia?.youtube || ''
+        }
+      });
+    }
+  }, [user]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    if (name.startsWith('socialMedia.')) {
+      const platform = name.split('.')[1];
+      setProfileData(prev => ({
+        ...prev,
+        socialMedia: {
+          ...prev.socialMedia,
+          [platform]: value
+        }
+      }));
+    } else {
+      setProfileData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const toggleInterest = (interest: string) => {
+    setProfileData(prev => ({
+      ...prev,
+      interests: prev.interests.includes(interest)
+        ? prev.interests.filter(i => i !== interest)
+        : [...prev.interests, interest]
+    }));
+  };
+
+  const validateProfile = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!profileData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!profileData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!profileData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(profileData.email)) newErrors.email = 'Email is invalid';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validatePassword = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!passwordData.currentPassword) newErrors.currentPassword = 'Current password is required';
+    if (!passwordData.newPassword) newErrors.newPassword = 'New password is required';
+    else if (passwordData.newPassword.length < 8) newErrors.newPassword = 'Password must be at least 8 characters';
+    if (!passwordData.confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
+    else if (passwordData.newPassword !== passwordData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSaveProfile = async () => {
+    if (!validateProfile()) return;
+    
+    try {
+      // TODO: Implement API call to save profile
+      console.log('Saving profile:', profileData);
+      
+      setSaveMessage('Profile updated successfully!');
+      setIsEditing(false);
+      
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      setErrors({ general: 'Failed to save profile. Please try again.' });
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!validatePassword()) return;
+    
+    try {
+      // TODO: Implement API call to change password
+      console.log('Changing password');
+      
+      setSaveMessage('Password changed successfully!');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      setErrors({ general: 'Failed to change password. Please try again.' });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return null; // Will redirect in useEffect
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0">
+        <div className="absolute top-20 left-20 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float"></div>
+        <div className="absolute top-40 right-10 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float animation-delay-2000"></div>
+        <div className="absolute bottom-20 left-1/3 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float animation-delay-4000"></div>
+      </div>
+
+      <div className="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-4 animate-fade-in">
+            My Profile
+          </h1>
+          <p className="text-xl text-gray-300 animate-slide-up">
+            Manage your account settings and preferences
+          </p>
+        </div>
+
+        {/* Success Message */}
+        {saveMessage && (
+          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center">
+            <CheckIcon className="h-5 w-5 text-green-400 mr-3" />
+            <p className="text-green-300">{saveMessage}</p>
+          </div>
+        )}
+
+        {/* General Error */}
+        {errors.general && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-3" />
+            <p className="text-red-300">{errors.general}</p>
+          </div>
+        )}
+
+        {/* Tab Navigation */}
+        <div className="mb-8">
+          <div className="flex space-x-1 bg-white/10 backdrop-blur-md rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`flex-1 py-3 px-4 rounded-md font-medium transition-all duration-300 ${
+                activeTab === 'profile'
+                  ? 'bg-white text-purple-600 shadow-lg'
+                  : 'text-white hover:bg-white/10'
+              }`}
+            >
+              👤 Profile Information
+            </button>
+            <button
+              onClick={() => setActiveTab('interests')}
+              className={`flex-1 py-3 px-4 rounded-md font-medium transition-all duration-300 ${
+                activeTab === 'interests'
+                  ? 'bg-white text-purple-600 shadow-lg'
+                  : 'text-white hover:bg-white/10'
+              }`}
+            >
+              ❤️ Interests
+            </button>
+            <button
+              onClick={() => setActiveTab('social')}
+              className={`flex-1 py-3 px-4 rounded-md font-medium transition-all duration-300 ${
+                activeTab === 'social'
+                  ? 'bg-white text-purple-600 shadow-lg'
+                  : 'text-white hover:bg-white/10'
+              }`}
+            >
+              📱 Social Media
+            </button>
+            <button
+              onClick={() => setActiveTab('security')}
+              className={`flex-1 py-3 px-4 rounded-md font-medium transition-all duration-300 ${
+                activeTab === 'security'
+                  ? 'bg-white text-purple-600 shadow-lg'
+                  : 'text-white hover:bg-white/10'
+              }`}
+            >
+              🔒 Security
+            </button>
+          </div>
+        </div>
+
+        {/* Profile Information Tab */}
+        {activeTab === 'profile' && (
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/20">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Profile Information</h2>
+              <button
+                onClick={() => setIsEditing(!isEditing)}
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-300"
+              >
+                <PencilIcon className="h-4 w-4" />
+                <span>{isEditing ? 'Cancel' : 'Edit Profile'}</span>
+              </button>
+            </div>
+
+            {/* Avatar Section */}
+            <div className="flex items-center space-x-6 mb-8">
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center">
+                  {profileData.avatar ? (
+                    <img src={profileData.avatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    <UserCircleIcon className="h-16 w-16 text-white" />
+                  )}
+                </div>
+                {isEditing && (
+                  <button className="absolute -bottom-2 -right-2 bg-purple-600 text-white rounded-full p-2 hover:bg-purple-700 transition-colors">
+                    <PhotoIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-white">{profileData.firstName} {profileData.lastName}</h3>
+                <p className="text-gray-300">{profileData.email}</p>
+                <span className="inline-block mt-1 px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 rounded-full">
+                  👤 Fan Member
+                </span>
+              </div>
+            </div>
+
+            {/* Profile Form */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* First Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={profileData.firstName}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  className={`w-full px-4 py-3 bg-white/10 border ${
+                    errors.firstName ? 'border-red-500' : 'border-white/20'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 disabled:opacity-60`}
+                  placeholder="John"
+                />
+                {errors.firstName && <p className="text-red-400 text-sm mt-1">{errors.firstName}</p>}
+              </div>
+
+              {/* Last Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={profileData.lastName}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  className={`w-full px-4 py-3 bg-white/10 border ${
+                    errors.lastName ? 'border-red-500' : 'border-white/20'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 disabled:opacity-60`}
+                  placeholder="Doe"
+                />
+                {errors.lastName && <p className="text-red-400 text-sm mt-1">{errors.lastName}</p>}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={profileData.email}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  className={`w-full px-4 py-3 bg-white/10 border ${
+                    errors.email ? 'border-red-500' : 'border-white/20'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 disabled:opacity-60`}
+                  placeholder="john@example.com"
+                />
+                {errors.email && <p className="text-red-400 text-sm mt-1">{errors.email}</p>}
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={profileData.phone}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 disabled:opacity-60"
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+
+              {/* Date of Birth */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Date of Birth</label>
+                <input
+                  type="date"
+                  name="dateOfBirth"
+                  value={profileData.dateOfBirth}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white disabled:opacity-60"
+                />
+              </div>
+
+              {/* Location */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Location</label>
+                <input
+                  type="text"
+                  name="location"
+                  value={profileData.location}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 disabled:opacity-60"
+                  placeholder="New York, NY"
+                />
+              </div>
+            </div>
+
+            {/* Bio */}
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Bio</label>
+              <textarea
+                name="bio"
+                value={profileData.bio}
+                onChange={handleInputChange}
+                disabled={!isEditing}
+                rows={4}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400 disabled:opacity-60 resize-none"
+                placeholder="Tell us about yourself..."
+              />
+            </div>
+
+            {/* Save Button */}
+            {isEditing && (
+              <div className="mt-8 flex justify-end">
+                <button
+                  onClick={handleSaveProfile}
+                  className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
+                >
+                  Save Changes
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Interests Tab */}
+        {activeTab === 'interests' && (
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/20">
+            <h2 className="text-2xl font-bold text-white mb-6">Your Interests</h2>
+            <p className="text-gray-300 mb-6">Select your interests to get personalized celebrity recommendations and content.</p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {availableInterests.map((interest) => (
+                <button
+                  key={interest}
+                  onClick={() => toggleInterest(interest)}
+                  className={`p-3 rounded-lg font-medium transition-all duration-300 text-center ${
+                    profileData.interests.includes(interest)
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg transform scale-105'
+                      : 'bg-white/10 text-gray-300 hover:bg-white/20 hover:text-white'
+                  }`}
+                >
+                  {interest}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-8 flex justify-end">
+              <button
+                onClick={handleSaveProfile}
+                className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
+              >
+                Save Interests
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Social Media Tab */}
+        {activeTab === 'social' && (
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/20">
+            <h2 className="text-2xl font-bold text-white mb-6">Social Media Links</h2>
+            <p className="text-gray-300 mb-6">Connect your social media accounts to share your fan journey.</p>
+            
+            <div className="space-y-6">
+              {/* Instagram */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">📷 Instagram</label>
+                <input
+                  type="text"
+                  name="socialMedia.instagram"
+                  value={profileData.socialMedia.instagram}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
+                  placeholder="@username"
+                />
+              </div>
+
+              {/* Twitter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">🐦 Twitter</label>
+                <input
+                  type="text"
+                  name="socialMedia.twitter"
+                  value={profileData.socialMedia.twitter}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
+                  placeholder="@username"
+                />
+              </div>
+
+              {/* TikTok */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">🎵 TikTok</label>
+                <input
+                  type="text"
+                  name="socialMedia.tiktok"
+                  value={profileData.socialMedia.tiktok}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
+                  placeholder="@username"
+                />
+              </div>
+
+              {/* YouTube */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">📺 YouTube</label>
+                <input
+                  type="text"
+                  name="socialMedia.youtube"
+                  value={profileData.socialMedia.youtube}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
+                  placeholder="Channel name or @handle"
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end">
+              <button
+                onClick={handleSaveProfile}
+                className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
+              >
+                Save Social Links
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Security Tab */}
+        {activeTab === 'security' && (
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8 border border-white/20">
+            <h2 className="text-2xl font-bold text-white mb-6">Security Settings</h2>
+            
+            {/* Change Password Section */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                <ShieldCheckIcon className="h-5 w-5 mr-2" />
+                Change Password
+              </h3>
+              
+              <div className="space-y-4">
+                {/* Current Password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="currentPassword"
+                      value={passwordData.currentPassword}
+                      onChange={handlePasswordChange}
+                      className={`w-full px-4 py-3 pr-12 bg-white/10 border ${
+                        errors.currentPassword ? 'border-red-500' : 'border-white/20'
+                      } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400`}
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                    >
+                      {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                    </button>
+                  </div>
+                  {errors.currentPassword && <p className="text-red-400 text-sm mt-1">{errors.currentPassword}</p>}
+                </div>
+
+                {/* New Password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                  <input
+                    type="password"
+                    name="newPassword"
+                    value={passwordData.newPassword}
+                    onChange={handlePasswordChange}
+                    className={`w-full px-4 py-3 bg-white/10 border ${
+                      errors.newPassword ? 'border-red-500' : 'border-white/20'
+                    } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400`}
+                    placeholder="Enter new password"
+                  />
+                  {errors.newPassword && <p className="text-red-400 text-sm mt-1">{errors.newPassword}</p>}
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={passwordData.confirmPassword}
+                    onChange={handlePasswordChange}
+                    className={`w-full px-4 py-3 bg-white/10 border ${
+                      errors.confirmPassword ? 'border-red-500' : 'border-white/20'
+                    } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400`}
+                    placeholder="Confirm new password"
+                  />
+                  {errors.confirmPassword && <p className="text-red-400 text-sm mt-1">{errors.confirmPassword}</p>}
+                </div>
+              </div>
+
+              <button
+                onClick={handleChangePassword}
+                className="mt-6 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
+              >
+                Change Password
+              </button>
+            </div>
+
+            {/* Account Info */}
+            <div className="border-t border-white/20 pt-8">
+              <h3 className="text-lg font-semibold text-white mb-4">Account Information</h3>
+              <div className="space-y-3 text-gray-300">
+                <div className="flex justify-between">
+                  <span>Account Type:</span>
+                  <span className="text-purple-400 font-medium">Fan Account</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Member Since:</span>
+                  <span className="text-purple-400 font-medium">January 2024</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Last Login:</span>
+                  <span className="text-purple-400 font-medium">Today</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
