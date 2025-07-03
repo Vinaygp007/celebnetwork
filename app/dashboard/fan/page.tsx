@@ -1,97 +1,130 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   HeartIcon, 
-  StarIcon,
-  UserIcon,
-  BellIcon,
-  Cog6ToothIcon,
-  MagnifyingGlassIcon,
-  PlusIcon
+  StarIcon, 
+  ChatBubbleLeftIcon,
+  BookmarkIcon
 } from '@heroicons/react/24/outline';
-import { authApi, celebritiesApi } from '@/lib/api';
-import type { Celebrity } from '@/lib/api';
+import api from '@/lib/api';
+
+// Define User type
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  phone?: string;
+  location?: string;
+  bio?: string;
+  avatar?: string;
+  isActive: boolean;
+}
 
 export default function FanDashboard() {
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [featuredCelebrities, setFeaturedCelebrities] = useState<Celebrity[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Check if user is authenticated
-    if (!authApi.isLoggedIn()) {
-      router.push('/auth/fan/login');
-      return;
-    }
-
-    // Load featured celebrities
-    loadFeaturedCelebrities();
-  }, [router]);
-
-  const loadFeaturedCelebrities = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
-      const celebrities = await celebritiesApi.getFeatured();
-      setFeaturedCelebrities(celebrities);
-    } catch (error) {
-      console.error('Error loading featured celebrities:', error);
+      setIsLoading(true);
+      setError(null);
+      
+      const token = localStorage.getItem('celebnetwork_token');
+      console.log('Token before API call:', token);
+      
+      if (!token) {
+        console.log('No token found, redirecting to login');
+        router.push('/auth/fan/login');
+        return;
+      }
+
+      console.log('Making API call to get profile...');
+      const profile = await api.users.getProfile();
+      console.log('Profile response:', profile);
+      
+      if (profile.role !== 'fan') {
+        console.log('User is not a fan, redirecting');
+        router.push('/');
+        return;
+      }
+
+      setUser(profile);
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      setError('Failed to load profile');
+      
+      // If it's an auth error, clear token and redirect
+      if (api.utils.isAuthError(err)) {
+        api.utils.clearAuth();
+        router.push('/auth/fan/login');
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [router]);
 
-  const handleLogout = () => {
-    authApi.logout();
-    router.push('/');
-  };
+  useEffect(() => {
+    console.log('Fan dashboard mounted');
+    
+    // Debug token storage
+    const storedToken = localStorage.getItem('celebnetwork_token');
+    console.log('Stored token:', storedToken);
+    
+    fetchUserProfile();
+  }, [fetchUserProfile]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      <div className="min-h-screen bg-gradient-to-br from-pink-900 via-purple-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-900 via-purple-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 text-lg mb-4">{error}</p>
+          <button
+            onClick={() => router.push('/auth/fan/login')}
+            className="bg-pink-600 hover:bg-pink-700 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Back to Login
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+    <div className="min-h-screen bg-gradient-to-br from-pink-900 via-purple-900 to-indigo-900">
       {/* Header */}
       <header className="bg-black/20 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
             <div className="flex items-center">
-              <StarIcon className="h-8 w-8 text-purple-400 mr-2" />
-              <span className="text-xl font-bold text-white">CelebNetwork</span>
+              <HeartIcon className="h-8 w-8 text-pink-400 mr-3" />
+              <h1 className="text-xl font-bold text-white">Fan Dashboard</h1>
             </div>
-
-            {/* Search */}
-            <div className="flex-1 max-w-md mx-8">
-              <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search celebrities..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
-                />
-              </div>
-            </div>
-
-            {/* Navigation */}
+            
             <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-300 hover:text-white transition-colors">
-                <BellIcon className="h-6 w-6" />
-              </button>
-              <button className="p-2 text-gray-300 hover:text-white transition-colors">
-                <Cog6ToothIcon className="h-6 w-6" />
-              </button>
+              <span className="text-gray-300">Hello, {user?.firstName || 'Fan'}!</span>
               <button
-                onClick={handleLogout}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+                onClick={() => {
+                  localStorage.removeItem('celebnetwork_token');
+                  router.push('/');
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
               >
                 Logout
               </button>
@@ -103,129 +136,107 @@ export default function FanDashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome to your Dashboard!</h1>
-          <p className="text-gray-300">Discover and connect with your favorite celebrities</p>
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-8">
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Welcome to Your Fan Dashboard! 💖
+          </h2>
+          <p className="text-gray-300 text-lg">
+            Discover celebrities, follow your favorites, and stay connected with the stars you love.
+          </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
             <div className="flex items-center">
-              <HeartIcon className="h-8 w-8 text-pink-400 mr-3" />
-              <div>
-                <h3 className="text-lg font-semibold text-white">Following</h3>
-                <p className="text-2xl font-bold text-pink-400">0</p>
+              <StarIcon className="h-8 w-8 text-yellow-400" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-300">Following</p>
+                <p className="text-2xl font-bold text-white">0</p>
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
             <div className="flex items-center">
-              <StarIcon className="h-8 w-8 text-yellow-400 mr-3" />
-              <div>
-                <h3 className="text-lg font-semibold text-white">Favorites</h3>
-                <p className="text-2xl font-bold text-yellow-400">0</p>
+              <HeartIcon className="h-8 w-8 text-red-400" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-300">Likes Given</p>
+                <p className="text-2xl font-bold text-white">0</p>
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
             <div className="flex items-center">
-              <UserIcon className="h-8 w-8 text-blue-400 mr-3" />
-              <div>
-                <h3 className="text-lg font-semibold text-white">Profile Views</h3>
-                <p className="text-2xl font-bold text-blue-400">0</p>
+              <ChatBubbleLeftIcon className="h-8 w-8 text-blue-400" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-300">Messages</p>
+                <p className="text-2xl font-bold text-white">0</p>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Featured Celebrities */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white">Featured Celebrities</h2>
-            <button className="text-purple-400 hover:text-purple-300 transition-colors">
-              View All
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredCelebrities.map((celebrity) => (
-              <div
-                key={celebrity.id}
-                className="bg-white/10 backdrop-blur-md rounded-xl overflow-hidden border border-white/20 hover:transform hover:scale-105 transition-all duration-300 cursor-pointer"
-              >
-                <div className="h-48 bg-gradient-to-br from-purple-500 to-pink-500 relative">
-                  {celebrity.avatar && (
-                    <img
-                      src={celebrity.avatar}
-                      alt={celebrity.firstName}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-black/20"></div>
-                  <div className="absolute bottom-4 left-4">
-                    <h3 className="text-lg font-bold text-white">
-                      {celebrity.stageName || `${celebrity.firstName} ${celebrity.lastName}`}
-                    </h3>
-                    <p className="text-sm text-gray-200">
-                      {celebrity.industries.slice(0, 2).join(', ')}
-                    </p>
-                  </div>
-                  {celebrity.isVerified && (
-                    <div className="absolute top-4 right-4">
-                      <div className="bg-blue-500 rounded-full p-1">
-                        <StarIcon className="h-4 w-4 text-white" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-4 text-sm text-gray-300">
-                      <span>{celebrity.followersCount.toLocaleString()} followers</span>
-                      <span>★ {celebrity.rating}/5</span>
-                    </div>
-                  </div>
-                  
-                  <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
-                    <PlusIcon className="h-4 w-4 mr-2" />
-                    Follow
-                  </button>
-                </div>
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+            <div className="flex items-center">
+              <BookmarkIcon className="h-8 w-8 text-green-400" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-300">Saved</p>
+                <p className="text-2xl font-bold text-white">0</p>
               </div>
-            ))}
-          </div>
-
-          {featuredCelebrities.length === 0 && (
-            <div className="text-center py-12">
-              <UserIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-300 mb-2">No celebrities found</h3>
-              <p className="text-gray-400">Check back later for featured celebrities!</p>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-          <h3 className="text-xl font-bold text-white mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
-              <h4 className="font-semibold mb-1">Explore Celebrities</h4>
-              <p className="text-sm opacity-80">Discover new celebrities to follow</p>
-            </button>
-            
-            <button className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
-              <h4 className="font-semibold mb-1">Update Profile</h4>
-              <p className="text-sm opacity-80">Complete your fan profile</p>
-            </button>
-            
-            <button className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
-              <h4 className="font-semibold mb-1">Join Communities</h4>
-              <p className="text-sm opacity-80">Connect with other fans</p>
-            </button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Discover */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+              <StarIcon className="h-6 w-6 text-yellow-400 mr-2" />
+              Discover Celebrities
+            </h3>
+            <div className="space-y-4">
+              <button 
+                onClick={() => router.push('/celebrities')}
+                className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white py-3 px-4 rounded-lg transition-colors text-left"
+              >
+                Browse All Celebrities
+              </button>
+              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                Trending Now
+              </button>
+              <button className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                Recommended for You
+              </button>
+            </div>
+          </div>
+
+          {/* My Activity */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center">
+              <HeartIcon className="h-6 w-6 text-red-400 mr-2" />
+              My Activity
+            </h3>
+            <div className="space-y-4">
+              <button className="w-full bg-pink-600 hover:bg-pink-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                My Favorite Celebrities
+              </button>
+              <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                Recent Interactions
+              </button>
+              <button className="w-full bg-teal-600 hover:bg-teal-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                Saved Content
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 mt-8">
+          <h3 className="text-xl font-bold text-white mb-4">Recent Activity</h3>
+          <div className="text-gray-300">
+            <p>Start following celebrities to see their latest updates here!</p>
           </div>
         </div>
       </main>

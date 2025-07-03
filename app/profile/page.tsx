@@ -6,25 +6,46 @@ import {
   UserCircleIcon, 
   PencilIcon, 
   PhotoIcon,
-  MapPinIcon,
-  CalendarIcon,
-  HeartIcon,
-  StarIcon,
-  SparklesIcon,
   CheckIcon,
   ExclamationTriangleIcon,
   EyeIcon,
   EyeSlashIcon,
   ShieldCheckIcon
 } from '@heroicons/react/24/outline';
-import { useAuth } from '@/lib/useAuth';
+import api from '@/lib/api';
+
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  phone?: string;
+  dateOfBirth?: string;
+  location?: string;
+  bio?: string;
+  interests?: string[];
+  avatar?: string;
+  coverPhoto?: string;
+  socialMedia?: {
+    instagram?: string;
+    twitter?: string;
+    tiktok?: string;
+    youtube?: string;
+  };
+  isActive?: boolean; // ✅ Made optional since API might not always return this
+  createdAt?: string; // ✅ Added for account info section
+}
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
@@ -43,11 +64,13 @@ export default function ProfilePage() {
       youtube: ''
     }
   });
+  
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
+  
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveMessage, setSaveMessage] = useState('');
 
@@ -58,36 +81,70 @@ export default function ProfilePage() {
     'Dance', 'Theater', 'Books', 'Podcasts', 'Streaming', 'Social Media'
   ];
 
-  // Redirect if not authenticated
+  // Check authentication and load user profile
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/auth/fan/login');
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  // Load user data when component mounts
-  useEffect(() => {
-    if (user) {
-      setProfileData({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        dateOfBirth: user.dateOfBirth || '',
-        location: user.location || '',
-        bio: user.bio || '',
-        interests: user.interests || [],
-        avatar: user.avatar || '',
-        coverPhoto: user.coverPhoto || '',
-        socialMedia: {
-          instagram: user.socialMedia?.instagram || '',
-          twitter: user.socialMedia?.twitter || '',
-          tiktok: user.socialMedia?.tiktok || '',
-          youtube: user.socialMedia?.youtube || ''
+    const loadUserProfile = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        const token = localStorage.getItem('celebnetwork_token');
+        
+        if (!token) {
+          console.log('No token found, redirecting to login');
+          router.push('/auth/fan/login');
+          return;
         }
-      });
-    }
-  }, [user]);
+
+        console.log('Loading user profile...');
+        const profile = await api.users.getProfile();
+        console.log('Profile loaded:', profile);
+        
+        // ✅ Cast the profile to our User type or use type assertion
+        const userProfile: User = {
+          ...profile,
+          isActive: profile.isActive ?? true, // Default to true if not provided
+          createdAt: profile.createdAt || new Date().toISOString(), // Default to current date
+        };
+        
+        setUser(userProfile);
+        
+        // Initialize form data with user data
+        setProfileData({
+          firstName: userProfile.firstName || '',
+          lastName: userProfile.lastName || '',
+          email: userProfile.email || '',
+          phone: userProfile.phone || '',
+          dateOfBirth: userProfile.dateOfBirth || '',
+          location: userProfile.location || '',
+          bio: userProfile.bio || '',
+          interests: Array.isArray(userProfile.interests) ? userProfile.interests : [],
+          avatar: userProfile.avatar || '',
+          coverPhoto: userProfile.coverPhoto || '',
+          socialMedia: {
+            instagram: userProfile.socialMedia?.instagram || '',
+            twitter: userProfile.socialMedia?.twitter || '',
+            tiktok: userProfile.socialMedia?.tiktok || '',
+            youtube: userProfile.socialMedia?.youtube || ''
+          }
+        });
+        
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+        setError('Failed to load profile');
+        
+        // If it's an auth error, redirect to login
+        if (api.utils.isAuthError(err)) {
+          localStorage.removeItem('celebnetwork_token');
+          router.push('/auth/fan/login');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserProfile();
+  }, [router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -147,25 +204,23 @@ export default function ProfilePage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const validatePassword = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!passwordData.currentPassword) newErrors.currentPassword = 'Current password is required';
-    if (!passwordData.newPassword) newErrors.newPassword = 'New password is required';
-    else if (passwordData.newPassword.length < 8) newErrors.newPassword = 'Password must be at least 8 characters';
-    if (!passwordData.confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
-    else if (passwordData.newPassword !== passwordData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleSaveProfile = async () => {
     if (!validateProfile()) return;
     
     try {
-      // TODO: Implement API call to save profile
       console.log('Saving profile:', profileData);
+      
+      // ✅ Check if updateProfile method exists, if not, use a fallback
+      if (api.users.updateProfile) {
+        await api.users.updateProfile(profileData);
+      } else {
+        // Fallback: Use the user ID to update via the generic update method
+        if (user?.id) {
+          await api.users.update(user.id, profileData);
+        } else {
+          throw new Error('No user ID available for update');
+        }
+      }
       
       setSaveMessage('Profile updated successfully!');
       setIsEditing(false);
@@ -177,32 +232,34 @@ export default function ProfilePage() {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!validatePassword()) return;
-    
-    try {
-      // TODO: Implement API call to change password
-      console.log('Changing password');
-      
-      setSaveMessage('Password changed successfully!');
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      
-      setTimeout(() => setSaveMessage(''), 3000);
-    } catch (error) {
-      console.error('Failed to change password:', error);
-      setErrors({ general: 'Failed to change password. Please try again.' });
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading your profile...</p>
+        </div>
       </div>
     );
   }
 
-  if (!isAuthenticated || !user) {
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 text-lg mb-4">{error}</p>
+          <button
+            onClick={() => router.push('/auth/fan/login')}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
     return null; // Will redirect in useEffect
   }
 
@@ -218,10 +275,10 @@ export default function ProfilePage() {
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4 animate-fade-in">
+          <h1 className="text-4xl font-bold text-white mb-4">
             My Profile
           </h1>
-          <p className="text-xl text-gray-300 animate-slide-up">
+          <p className="text-xl text-gray-300">
             Manage your account settings and preferences
           </p>
         </div>
@@ -322,7 +379,7 @@ export default function ProfilePage() {
                 <h3 className="text-xl font-semibold text-white">{profileData.firstName} {profileData.lastName}</h3>
                 <p className="text-gray-300">{profileData.email}</p>
                 <span className="inline-block mt-1 px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 rounded-full">
-                  👤 Fan Member
+                  👤 {user.role === 'fan' ? 'Fan Member' : 'Celebrity'}
                 </span>
               </div>
             </div>
@@ -576,9 +633,7 @@ export default function ProfilePage() {
                       name="currentPassword"
                       value={passwordData.currentPassword}
                       onChange={handlePasswordChange}
-                      className={`w-full px-4 py-3 pr-12 bg-white/10 border ${
-                        errors.currentPassword ? 'border-red-500' : 'border-white/20'
-                      } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400`}
+                      className="w-full px-4 py-3 pr-12 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
                       placeholder="Enter current password"
                     />
                     <button
@@ -589,7 +644,6 @@ export default function ProfilePage() {
                       {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                     </button>
                   </div>
-                  {errors.currentPassword && <p className="text-red-400 text-sm mt-1">{errors.currentPassword}</p>}
                 </div>
 
                 {/* New Password */}
@@ -600,12 +654,9 @@ export default function ProfilePage() {
                     name="newPassword"
                     value={passwordData.newPassword}
                     onChange={handlePasswordChange}
-                    className={`w-full px-4 py-3 bg-white/10 border ${
-                      errors.newPassword ? 'border-red-500' : 'border-white/20'
-                    } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400`}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
                     placeholder="Enter new password"
                   />
-                  {errors.newPassword && <p className="text-red-400 text-sm mt-1">{errors.newPassword}</p>}
                 </div>
 
                 {/* Confirm New Password */}
@@ -616,17 +667,13 @@ export default function ProfilePage() {
                     name="confirmPassword"
                     value={passwordData.confirmPassword}
                     onChange={handlePasswordChange}
-                    className={`w-full px-4 py-3 bg-white/10 border ${
-                      errors.confirmPassword ? 'border-red-500' : 'border-white/20'
-                    } rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400`}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-400"
                     placeholder="Confirm new password"
                   />
-                  {errors.confirmPassword && <p className="text-red-400 text-sm mt-1">{errors.confirmPassword}</p>}
                 </div>
               </div>
 
               <button
-                onClick={handleChangePassword}
                 className="mt-6 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
               >
                 Change Password
@@ -639,15 +686,19 @@ export default function ProfilePage() {
               <div className="space-y-3 text-gray-300">
                 <div className="flex justify-between">
                   <span>Account Type:</span>
-                  <span className="text-purple-400 font-medium">Fan Account</span>
+                  <span className="text-purple-400 font-medium">{user.role === 'fan' ? 'Fan Account' : 'Celebrity Account'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Member Since:</span>
-                  <span className="text-purple-400 font-medium">January 2024</span>
+                  <span className="text-purple-400 font-medium">
+                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Last Login:</span>
-                  <span className="text-purple-400 font-medium">Today</span>
+                  <span>Account Status:</span>
+                  <span className="text-purple-400 font-medium">
+                    {user.isActive ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
               </div>
             </div>

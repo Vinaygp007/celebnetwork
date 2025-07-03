@@ -1,37 +1,55 @@
-import { Controller, Get, Param, UseGuards, Put, Body, Post, Delete, Request } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Patch, 
+  Param, 
+  Delete,
+  UseGuards,
+  Request 
+} from '@nestjs/common';
 import { FansService } from './fans.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('fans')
 export class FansController {
-  constructor(private fansService: FansService) {}
+  constructor(private readonly fansService: FansService) {}
+
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  create(@Body() createFanDto: any, @Request() req: any) {
+    return this.fansService.create({
+      ...createFanDto,
+      userId: req.user.sub,
+    });
+  }
+
+  @Get()
+  findAll() {
+    return this.fansService.findAll();
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  getProfile(@Request() req: any) {
+    return this.fansService.findByUserId(req.user.sub);
+  }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.fansService.findOne(id);
   }
 
-  @Put(':id')
-  @UseGuards(AuthGuard('jwt'))
-  update(@Param('id') id: string, @Body() updateData: Partial<any>) {
-    return this.fansService.update(id, updateData);
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  update(@Param('id') id: string, @Body() updateFanDto: any) {
+    return this.fansService.update(id, updateFanDto);
   }
 
-  @Post(':id/favorites/:celebrityId')
-  @UseGuards(AuthGuard('jwt'))
-  addFavorite(@Param('id') id: string, @Param('celebrityId') celebrityId: string) {
-    return this.fansService.addFavoriteCelebrity(id, celebrityId);
-  }
-
-  @Delete(':id/favorites/:celebrityId')
-  @UseGuards(AuthGuard('jwt'))
-  removeFavorite(@Param('id') id: string, @Param('celebrityId') celebrityId: string) {
-    return this.fansService.removeFavoriteCelebrity(id, celebrityId);
-  }
-
-  @Get('user/:userId')
-  @UseGuards(AuthGuard('jwt'))
-  findByUserId(@Param('userId') userId: string) {
-    return this.fansService.findByUserId(userId);
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  remove(@Param('id') id: string) {
+    return this.fansService.remove(id);
   }
 }

@@ -14,7 +14,7 @@ export default function Navigation() {
   const [lastScrollY, setLastScrollY] = useState(0);
   const [showNav, setShowNav] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false); // Add this missing state
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user, isAuthenticated, logout, refreshUserData } = useAuth();
 
@@ -48,18 +48,26 @@ export default function Navigation() {
     }
   }, [isAuthenticated, refreshUserData]);
 
-  // Handle scroll effect for navbar background
+  // Handle scroll effect for navbar background and visibility
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrollPercentage = currentScrollY / (documentHeight - windowHeight);
       
-      // Show/hide navbar based on scroll direction
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        // Scrolling down & past threshold
-        setShowNav(false);
-      } else {
-        // Scrolling up or at top
+      // Always show navbar when near bottom of page (for footer visibility)
+      if (scrollPercentage > 0.85) {
         setShowNav(true);
+      } else {
+        // Normal scroll behavior for the rest of the page
+        if (currentScrollY > lastScrollY && currentScrollY > 100) {
+          // Scrolling down & past threshold
+          setShowNav(false);
+        } else {
+          // Scrolling up or at top
+          setShowNav(true);
+        }
       }
       
       // Background blur effect
@@ -130,7 +138,7 @@ export default function Navigation() {
         </div>
       )}
 
-      {/* Fixed Navigation */}
+      {/* Fixed Navigation - Updated z-index and positioning */}
       <motion.nav 
         className={`fixed w-full z-50 transition-all duration-500 ease-in-out ${
           scrolled 
@@ -146,6 +154,7 @@ export default function Navigation() {
           duration: 0.3,
           ease: "easeInOut"
         }}
+        style={{ position: 'fixed', top: 0, left: 0, right: 0 }} // Ensure proper positioning
       >
         <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 animate-pulse"></div>
         
@@ -155,7 +164,6 @@ export default function Navigation() {
             <div className="flex items-center flex-shrink-0">
               <Link href="/" className="group flex items-center space-x-3">
                 <div className="relative">
-                  {/* Animated logo background */}
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300 animate-pulse"></div>
                   <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 p-3 rounded-xl shadow-lg group-hover:shadow-2xl transition-all duration-300 group-hover:scale-110">
                     <StarSolidIcon className="h-6 w-6 text-white animate-spin-slow" />
@@ -186,7 +194,6 @@ export default function Navigation() {
                     }`}
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
-                    {/* Animated background on hover */}
                     <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
                     
                     <div className="relative flex items-center space-x-2">
@@ -196,12 +203,10 @@ export default function Navigation() {
                       <span className="font-medium">{item.name}</span>
                     </div>
 
-                    {/* Active indicator */}
                     {isActive(item.href) && (
                       <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full animate-pulse"></div>
                     )}
 
-                    {/* Hover shine effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 group-hover:animate-shimmer rounded-full"></div>
                   </Link>
                 ))}
@@ -212,7 +217,6 @@ export default function Navigation() {
             <div className="hidden lg:flex items-center space-x-4 flex-shrink-0">
               {isAuthenticated && user ? (
                 <>
-                  {/* Show Celebrity Login only if user is not a celebrity */}
                   {user.role !== 'celebrity' && (
                     <Link
                       href="/celebrity/login"
@@ -223,16 +227,12 @@ export default function Navigation() {
                     </Link>
                   )}
                   
-                  {/* User Menu */}
                   <div className="relative user-menu-container">
                     <button
                       onClick={() => setUserMenuOpen(!userMenuOpen)}
                       className="group relative flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-full shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 overflow-hidden"
                     >
-                      {/* Animated background */}
                       <div className="absolute inset-0 bg-gradient-to-r from-pink-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      
-                      {/* Shimmer effect */}
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 group-hover:animate-shimmer"></div>
                       
                       <span className="relative z-10 flex items-center space-x-2">
@@ -242,7 +242,6 @@ export default function Navigation() {
                       </span>
                     </button>
 
-                    {/* Dropdown Menu */}
                     {userMenuOpen && (
                       <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-slideInLeft">
                         <div className="py-2">
@@ -283,7 +282,6 @@ export default function Navigation() {
                 </>
               ) : (
                 <>
-                  {/* Login Buttons for Non-Authenticated Users */}
                   <Link
                     href="/auth/fan/login"
                     className="group relative px-6 py-3 text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 overflow-hidden rounded-full"
@@ -296,10 +294,7 @@ export default function Navigation() {
                     href="/celebrity/login"
                     className="group relative px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-full shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 overflow-hidden"
                   >
-                    {/* Animated background */}
                     <div className="absolute inset-0 bg-gradient-to-r from-pink-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    
-                    {/* Shimmer effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 group-hover:animate-shimmer"></div>
                     
                     <span className="relative z-10 flex items-center space-x-2">
@@ -329,14 +324,13 @@ export default function Navigation() {
           </div>
         </div>
 
-        {/* Mobile Menu with Slide Animation */}
+        {/* Mobile Menu */}
         <div className={`lg:hidden transition-all duration-500 ease-in-out overflow-hidden ${
           isOpen 
             ? 'max-h-screen opacity-100 bg-white/95 backdrop-blur-xl border-t border-purple-100' 
             : 'max-h-0 opacity-0'
         }`}>
           <div className="px-4 pt-6 pb-8 space-y-4">
-            {/* Mobile Navigation Links */}
             {navigation.map((item, index) => (
               <Link
                 key={item.name}
@@ -358,18 +352,15 @@ export default function Navigation() {
                 </span>
                 <span className="font-semibold text-lg">{item.name}</span>
                 
-                {/* Animated arrow */}
                 <div className="ml-auto">
                   <div className="w-2 h-2 border-r-2 border-b-2 border-current transform rotate-[-45deg] group-hover:translate-x-1 transition-transform duration-300"></div>
                 </div>
               </Link>
             ))}
             
-            {/* Mobile Auth Buttons / User Menu */}
             <div className="pt-6 border-t border-purple-100 space-y-4">
               {isAuthenticated && user ? (
                 <>
-                  {/* User Info */}
                   <div className="p-4 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl">
                     <div className="flex items-center space-x-3">
                       <UserCircleIcon className="h-8 w-8 text-purple-600" />
@@ -383,7 +374,6 @@ export default function Navigation() {
                     </div>
                   </div>
                   
-                  {/* Dashboard Link */}
                   <Link
                     href={user.role === 'fan' ? '/dashboard/fan' : '/dashboard/celebrity'}
                     className="flex items-center justify-center space-x-2 w-full p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300"
@@ -393,7 +383,6 @@ export default function Navigation() {
                     <span>Dashboard</span>
                   </Link>
                   
-                  {/* Profile Settings */}
                   <Link
                     href="/profile"
                     className="flex items-center justify-center space-x-2 w-full p-4 bg-gradient-to-r from-gray-100 to-purple-100 text-gray-700 font-semibold rounded-2xl hover:from-purple-100 hover:to-pink-100 hover:text-purple-700 transition-all duration-300 hover:scale-[1.02]"
@@ -403,7 +392,6 @@ export default function Navigation() {
                     <span>Profile Settings</span>
                   </Link>
                   
-                  {/* Show Celebrity Login only if user is not a celebrity */}
                   {user.role !== 'celebrity' && (
                     <Link
                       href="/celebrity/login"
@@ -415,7 +403,6 @@ export default function Navigation() {
                     </Link>
                   )}
                   
-                  {/* Logout Button */}
                   <button
                     onClick={() => {
                       handleLogout();
@@ -429,7 +416,6 @@ export default function Navigation() {
                 </>
               ) : (
                 <>
-                  {/* Login Buttons for Non-Authenticated Users */}
                   <Link
                     href="/auth/fan/login"
                     className="flex items-center justify-center space-x-2 w-full p-4 bg-gradient-to-r from-gray-100 to-purple-100 text-gray-700 font-semibold rounded-2xl hover:from-purple-100 hover:to-pink-100 hover:text-purple-700 transition-all duration-300 hover:scale-[1.02]"

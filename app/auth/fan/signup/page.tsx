@@ -99,27 +99,40 @@ export default function FanSignup() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateStep(3)) return;
-
     setIsLoading(true);
     setApiError('');
     
     try {
-      const response = await authApi.register({
+      // Validation
+      if (!formData.email || !formData.password || !formData.firstName || !formData.lastName) {
+        setApiError('Please fill in all required fields');
+        return;
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        setApiError('Passwords do not match');
+        return;
+      }
+
+      if (formData.password.length < 6) {
+        setApiError('Password must be at least 6 characters long');
+        return;
+      }
+
+      // Call the correct API method
+      const response = await authApi.signupFan({
         email: formData.email,
         password: formData.password,
-        role: 'fan',
         firstName: formData.firstName,
         lastName: formData.lastName,
-        dateOfBirth: formData.dateOfBirth,
-        location: formData.country,
       });
 
-      // Successfully registered
+      // Successfully signed up
       console.log('Signup successful:', response.user);
       
-      // Redirect to fan dashboard
+      // Redirect to fan dashboard or login
       router.push('/dashboard/fan');
+      
     } catch (err) {
       console.error('Signup error:', err);
       setApiError(apiUtils.formatError(err));

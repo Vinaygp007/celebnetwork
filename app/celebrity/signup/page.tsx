@@ -8,17 +8,32 @@ import {
   LinkIcon,
   StarIcon 
 } from '@heroicons/react/24/solid';
+import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
 
 interface CelebrityFormData {
-  name: string;
+  // Basic auth fields
+  email: string;
+  password: string;
+  confirmPassword: string;
+  firstName: string;
+  lastName: string;
+  stageName: string;
+  
+  // Celebrity profile fields
   category: string;
   country: string;
   genre: string;
   bio: string;
+  industries: string[];
+  
+  // Social media
   instagram: string;
   youtube: string;
   spotify: string;
   twitter: string;
+  
+  // Additional fields
   fanbase: string;
   achievements: string[];
   oneLineIntro: string;
@@ -53,20 +68,37 @@ const countries = [
 export default function CelebritySignup() {
   const [step, setStep] = useState(1);
   const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState<CelebrityFormData>({
-    name: '',
+    // Auth fields
+    email: '',
+    password: '',
+    confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    stageName: '',
+    
+    // Profile fields
     category: '',
     country: '',
     genre: '',
     bio: '',
+    industries: [],
+    
+    // Social media
     instagram: '',
     youtube: '',
     spotify: '',
     twitter: '',
+    
+    // Additional
     fanbase: '',
     achievements: [],
     oneLineIntro: ''
   });
+
+  const router = useRouter();
 
   const handleInputChange = (field: keyof CelebrityFormData, value: string | string[]) => {
     setFormData(prev => ({
@@ -96,14 +128,19 @@ export default function CelebritySignup() {
       if (intro.includes('singer') || intro.includes('musician')) {
         suggestedData.category = 'Singer';
         suggestedData.genre = 'Pop'; // Default genre
+        suggestedData.industries = ['Music'];
       } else if (intro.includes('actor') || intro.includes('actress')) {
         suggestedData.category = 'Actor';
+        suggestedData.industries = ['Entertainment'];
       } else if (intro.includes('director')) {
         suggestedData.category = 'Director';
+        suggestedData.industries = ['Film'];
       } else if (intro.includes('comedian')) {
         suggestedData.category = 'Comedian';
+        suggestedData.industries = ['Comedy'];
       } else if (intro.includes('speaker')) {
         suggestedData.category = 'Motivational Speaker';
+        suggestedData.industries = ['Speaking'];
       }
 
       // Apply suggestions to form
@@ -122,52 +159,55 @@ export default function CelebritySignup() {
     setStep(2);
   };
 
-  const handleSubmit = async () => {
-    // Validate required fields
-    const requiredFields = ['name', 'category', 'country', 'fanbase'];
-    const missingFields = requiredFields.filter(field => !formData[field as keyof CelebrityFormData]);
+  const validateForm = () => {
+    if (!formData.email || !formData.password || !formData.firstName || !formData.lastName) {
+      setError('Please fill in all required fields');
+      return false;
+    }
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return false;
+    }
+    
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
       return;
     }
+    
+    setIsLoading(true);
+    setError('');
 
-    // Validate fanbase is a number
-    if (isNaN(Number(formData.fanbase)) || Number(formData.fanbase) < 1000) {
-      alert('Fanbase must be a number and at least 1000');
-      return;
-    }
-
-    // Validate social media URLs
-    const urlFields = ['instagram', 'youtube', 'spotify', 'twitter'];
-    for (const field of urlFields) {
-      const value = formData[field as keyof CelebrityFormData] as string;
-      if (value && typeof value === 'string' && !value.startsWith('@') && !value.startsWith('http')) {
-        alert(`${field} should start with @ or be a valid URL`);
-        return;
-      }
-    }
-
-    // Submit profile to backend API
     try {
-      const response = await fetch('/api/celebrity/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
+      const response = await api.auth.signupCelebrity({
+        email: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        stageName: formData.stageName || `${formData.firstName} ${formData.lastName}`,
+        bio: formData.bio,
+        industries: formData.industries.length > 0 ? formData.industries : [formData.category],
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        alert('Celebrity profile created successfully!');
-        window.location.href = `/celebrity/${result.id}`;
-      } else {
-        alert('Failed to create profile. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error creating profile:', error);
-      alert('Network error. Please check your connection and try again.');
+      console.log('Signup successful:', response);
+      
+      // Redirect to dashboard
+      router.push('/dashboard/celebrity');
+    } catch (err) {
+      console.error('Signup error:', err);
+      setError(api.utils.formatError(err));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -184,6 +224,13 @@ export default function CelebritySignup() {
           </p>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+
         {/* Progress Steps */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center space-x-4">
@@ -197,6 +244,10 @@ export default function CelebritySignup() {
             <div className={`w-16 h-1 ${step >= 3 ? 'bg-purple-600' : 'bg-gray-200'}`} />
             <div className={`flex items-center justify-center w-10 h-10 rounded-full ${step >= 3 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
               3
+            </div>
+            <div className={`w-16 h-1 ${step >= 4 ? 'bg-purple-600' : 'bg-gray-200'}`} />
+            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${step >= 4 ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+              4
             </div>
           </div>
         </div>
@@ -243,43 +294,156 @@ export default function CelebritySignup() {
                   </>
                 )}
               </button>
+
+              <button
+                onClick={() => setStep(2)}
+                className="w-full mt-4 bg-gray-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+              >
+                Skip AI and Fill Manually
+              </button>
             </div>
           </div>
         )}
 
-        {/* Step 2: Profile Details */}
+        {/* Step 2: Basic Information */}
         {step === 2 && (
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Basic Information
+              </h2>
+              <p className="text-gray-600">
+                Create your account and basic profile
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Account Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Account Details</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirm Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Personal Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Personal Details</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => handleInputChange('firstName', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => handleInputChange('lastName', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Stage Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.stageName}
+                    onChange={(e) => handleInputChange('stageName', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="Leave blank to use your real name"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-8">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                className="flex-1 bg-purple-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Profile Details */}
+        {step === 3 && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 Profile Details
               </h2>
               <p className="text-gray-600">
-                Review and edit the AI-generated information
+                Tell us about your career and interests
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Basic Information */}
+              {/* Career Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <UserIcon className="h-5 w-5" />
-                  Basic Information
+                  Career Information
                 </h3>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Category *
@@ -329,7 +493,7 @@ export default function CelebritySignup() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fanbase (Number of followers) *
+                    Fanbase (Number of followers)
                   </label>
                   <input
                     type="number"
@@ -337,8 +501,7 @@ export default function CelebritySignup() {
                     onChange={(e) => handleInputChange('fanbase', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="e.g., 1000000"
-                    min="1000"
-                    required
+                    min="0"
                   />
                 </div>
               </div>
@@ -378,19 +541,6 @@ export default function CelebritySignup() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Spotify
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.spotify}
-                    onChange={(e) => handleInputChange('spotify', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Artist name or URL"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Twitter
                   </label>
                   <input
@@ -408,7 +558,7 @@ export default function CelebritySignup() {
                   </label>
                   <textarea
                     value={formData.achievements.join(', ')}
-                    onChange={(e) => handleInputChange('achievements', e.target.value.split(', '))}
+                    onChange={(e) => handleInputChange('achievements', e.target.value.split(', ').filter(a => a.trim()))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="Awards, recognitions (separate with commas)"
                     rows={3}
@@ -433,13 +583,13 @@ export default function CelebritySignup() {
 
             <div className="flex gap-4 mt-8">
               <button
-                onClick={() => setStep(1)}
+                onClick={() => setStep(2)}
                 className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
               >
                 Back
               </button>
               <button
-                onClick={() => setStep(3)}
+                onClick={() => setStep(4)}
                 className="flex-1 bg-purple-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
               >
                 Review & Submit
@@ -448,8 +598,8 @@ export default function CelebritySignup() {
           </div>
         )}
 
-        {/* Step 3: Review & Submit */}
-        {step === 3 && (
+        {/* Step 4: Review & Submit */}
+        {step === 4 && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -467,16 +617,20 @@ export default function CelebritySignup() {
                   <UserIcon className="h-12 w-12 text-purple-600" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-1">{formData.name}</h3>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                    {formData.stageName || `${formData.firstName} ${formData.lastName}`}
+                  </h3>
                   <p className="text-purple-600 font-semibold mb-1">{formData.category}</p>
                   <div className="flex items-center text-gray-600 mb-2">
                     <MapPinIcon className="h-4 w-4 mr-1" />
                     {formData.country}
                   </div>
-                  <div className="flex items-center text-gray-600">
-                    <StarIcon className="h-4 w-4 mr-1" />
-                    {Number(formData.fanbase).toLocaleString()} followers
-                  </div>
+                  {formData.fanbase && (
+                    <div className="flex items-center text-gray-600">
+                      <StarIcon className="h-4 w-4 mr-1" />
+                      {Number(formData.fanbase).toLocaleString()} followers
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -513,11 +667,6 @@ export default function CelebritySignup() {
                       <span className="font-medium">YouTube:</span> {formData.youtube}
                     </div>
                   )}
-                  {formData.spotify && (
-                    <div>
-                      <span className="font-medium">Spotify:</span> {formData.spotify}
-                    </div>
-                  )}
                   {formData.twitter && (
                     <div>
                       <span className="font-medium">Twitter:</span> {formData.twitter}
@@ -529,16 +678,25 @@ export default function CelebritySignup() {
 
             <div className="flex gap-4">
               <button
-                onClick={() => setStep(2)}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                onClick={() => setStep(3)}
+                disabled={isLoading}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 disabled:opacity-50 transition-colors"
               >
                 Edit Profile
               </button>
               <button
                 onClick={handleSubmit}
-                className="flex-1 bg-purple-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                disabled={isLoading}
+                className="flex-1 bg-purple-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center justify-center"
               >
-                Create Profile
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+                    Creating Profile...
+                  </>
+                ) : (
+                  'Create Profile'
+                )}
               </button>
             </div>
           </div>

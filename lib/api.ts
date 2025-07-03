@@ -1,5 +1,8 @@
 // API configuration and integration for CelebNetwork frontend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+// Make sure this matches where your backend is running
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://your-production-api.com' 
+  : 'http://localhost:3001'; // ✅ This should match your backend port
 
 // Types for API responses and requests
 export interface User {
@@ -58,24 +61,6 @@ export interface Fan {
   updatedAt: string;
 }
 
-export interface RegisterData {
-  email: string;
-  password: string;
-  role?: 'fan' | 'celebrity';
-  firstName: string;
-  lastName: string;
-  dateOfBirth?: string;
-  location?: string;
-  stageName?: string;
-  bio?: string;
-  industries?: string[];
-}
-
-export interface LoginData {
-  email: string;
-  password: string;
-}
-
 // API error handling
 export class ApiError extends Error {
   constructor(
@@ -93,199 +78,206 @@ async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  console.log('🔥 Making API request to:', `${API_BASE_URL}${endpoint}`);
   
-  const defaultOptions: RequestInit = {
+  const config: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
-    },
-  };
-
-  // Add authorization header if token exists
-  const token = typeof window !== 'undefined' 
-    ? localStorage.getItem('celebnetwork_token') 
-    : null;
-    
-  if (token) {
-    defaultOptions.headers = {
-      ...defaultOptions.headers,
-      Authorization: `Bearer ${token}`,
-    };
-  }
-
-  const config = {
-    ...defaultOptions,
-    ...options,
-    headers: {
-      ...defaultOptions.headers,
+      ...apiUtils.getAuthHeaders(),
       ...options.headers,
     },
+    ...options,
   };
 
+  console.log('🔥 Request config:', config);
+
   try {
-    const response = await fetch(url, config);
+    console.log('🔥 Attempting fetch...');
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
     
+    console.log('🔥 Response status:', response.status);
+    console.log('🔥 Response headers:', response.headers);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('🔥 Error response:', errorData);
       throw new ApiError(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-        response.status,
-        errorData
+        errorData.message || `HTTP error! status: ${response.status}`,
+        response.status
       );
     }
 
-    // Handle empty responses
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return response.json();
-    }
-    
-    return response.text() as unknown as T;
+    const data = await response.json();
+    console.log('🔥 JSON Response:', data);
+    return data;
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    
-    // Network or other errors
-    throw new ApiError(
-      error instanceof Error ? error.message : 'Network error occurred',
-      0
-    );
+    console.error('🔥 Fetch error:', error);
+    throw error;
   }
 }
 
-// Authentication API
+// Auth API functions
 export const authApi = {
-  // Register a new user (fan or celebrity)
-  async register(data: RegisterData): Promise<AuthResponse> {
-    const response = await apiRequest<AuthResponse>('/auth/register', {
+  // Login
+  login: async (data: { email: string; password: string }): Promise<AuthResponse> => {
+    console.log('🔥 Making login request to:', `${API_BASE_URL}/api/auth/login`);
+    
+    const result = await apiRequest<AuthResponse>('/api/auth/login', { // ✅ Keep /api prefix
       method: 'POST',
       body: JSON.stringify(data),
     });
     
-    // Store token in localStorage
-    if (typeof window !== 'undefined' && response.accessToken) {
-      localStorage.setItem('celebnetwork_token', response.accessToken);
+    // Store token consistently
+    if (result.accessToken) {
+      localStorage.setItem('celebnetwork_token', result.accessToken);
     }
-    
-    return response;
+
+    return result;
   },
 
-  // Login user
-  async login(data: LoginData): Promise<AuthResponse> {
-    const response = await apiRequest<AuthResponse>('/auth/login', {
+  // Fan signup
+  signupFan: async (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<AuthResponse> => {
+    const result = await apiRequest<AuthResponse>('/api/auth/register', { // ✅ Keep /api prefix
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        role: 'fan',
+      }),
     });
     
-    // Store token in localStorage
-    if (typeof window !== 'undefined' && response.accessToken) {
-      localStorage.setItem('celebnetwork_token', response.accessToken);
+    if (result.accessToken) {
+      localStorage.setItem('celebnetwork_token', result.accessToken);
     }
+
+    return result;
+  },
+
+  // Celebrity signup
+  signupCelebrity: async (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    stageName?: string;
+    bio?: string;
+    industries?: string[];
+  }): Promise<AuthResponse> => {
+    const result = await apiRequest<AuthResponse>('/api/auth/register', { // ✅ Keep /api prefix
+      method: 'POST',
+      body: JSON.stringify({
+        ...data,
+        role: 'celebrity',
+      }),
+    });
     
-    return response;
-  },
-
-  // Logout user
-  logout(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('celebnetwork_token');
+    if (result.accessToken) {
+      localStorage.setItem('celebnetwork_token', result.accessToken);
     }
+
+    return result;
   },
 
-  // Check if user is logged in
-  isLoggedIn(): boolean {
-    if (typeof window === 'undefined') return false;
-    return !!localStorage.getItem('celebnetwork_token');
-  },
-
-  // Get stored token
-  getToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('celebnetwork_token');
+  // Logout
+  logout: async (): Promise<void> => {
+    apiUtils.clearAuth();
   },
 };
 
-// Users API
+// Users API functions
 export const usersApi = {
   // Get current user profile
-  async getProfile(): Promise<User> {
-    return apiRequest<User>('/users/profile');
+  getProfile: async (): Promise<User> => {
+    return apiRequest<User>('/api/users/profile'); // ✅ Keep /api prefix
+  },
+
+  // Update user profile
+  updateProfile: async (data: Partial<User>): Promise<User> => {
+    return apiRequest<User>('/api/users/profile', { // ✅ Keep /api prefix
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 
   // Get user by ID
-  async getUser(id: string): Promise<User> {
-    return apiRequest<User>(`/users/${id}`);
+  getById: async (id: string): Promise<User> => {
+    return apiRequest<User>(`/api/users/${id}`); // ✅ Keep /api prefix
   },
 };
 
-// Celebrities API
-export const celebritiesApi = {
+// Celebrity API functions
+export const celebrityApi = {
   // Get all celebrities
-  async getAll(): Promise<Celebrity[]> {
-    return apiRequest<Celebrity[]>('/celebrities');
+  getAll: async (): Promise<Celebrity[]> => {
+    return apiRequest<Celebrity[]>('/api/celebrities'); // ✅ Add /api prefix
   },
 
   // Get featured celebrities
-  async getFeatured(): Promise<Celebrity[]> {
-    return apiRequest<Celebrity[]>('/celebrities/featured');
+  getFeatured: async (): Promise<Celebrity[]> => {
+    return apiRequest<Celebrity[]>('/api/celebrities/featured'); // ✅ Add /api prefix
   },
 
   // Search celebrities
-  async search(query: string): Promise<Celebrity[]> {
-    return apiRequest<Celebrity[]>(`/celebrities/search?q=${encodeURIComponent(query)}`);
-  },
-
-  // Get celebrities by industry
-  async getByIndustry(industry: string): Promise<Celebrity[]> {
-    return apiRequest<Celebrity[]>(`/celebrities/industry/${encodeURIComponent(industry)}`);
+  search: async (query: string): Promise<Celebrity[]> => {
+    return apiRequest<Celebrity[]>('/api/celebrities/search', { // ✅ Add /api prefix
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    });
   },
 
   // Get celebrity by ID
-  async getById(id: string): Promise<Celebrity> {
-    return apiRequest<Celebrity>(`/celebrities/${id}`);
-  },
-
-  // Update celebrity profile (protected)
-  async update(id: string, data: Partial<Celebrity>): Promise<Celebrity> {
-    return apiRequest<Celebrity>(`/celebrities/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+  getById: async (id: string): Promise<Celebrity> => {
+    return apiRequest<Celebrity>(`/api/celebrities/${id}`); // ✅ Add /api prefix
   },
 };
 
-// Fans API
+// Fans API functions
 export const fansApi = {
+  // Get all fans
+  getAll: async (): Promise<Fan[]> => {
+    return apiRequest<Fan[]>('/api/fans'); // ✅ Add /api prefix
+  },
+
+  // Get fan profile
+  getProfile: async (): Promise<Fan> => {
+    return apiRequest<Fan>('/api/fans/profile'); // ✅ Add /api prefix
+  },
+
   // Get fan by ID
-  async getById(id: string): Promise<Fan> {
-    return apiRequest<Fan>(`/fans/${id}`);
+  getById: async (id: string): Promise<Fan> => {
+    return apiRequest<Fan>(`/api/fans/${id}`); // ✅ Add /api prefix
   },
 
-  // Get fan by user ID
-  async getByUserId(userId: string): Promise<Fan> {
-    return apiRequest<Fan>(`/fans/user/${userId}`);
-  },
-
-  // Update fan profile (protected)
-  async update(id: string, data: Partial<Fan>): Promise<Fan> {
-    return apiRequest<Fan>(`/fans/${id}`, {
+  // Update fan profile
+  updateProfile: async (data: Partial<Fan>): Promise<Fan> => {
+    return apiRequest<Fan>('/api/fans/profile', { // ✅ Add /api prefix
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
-  // Add favorite celebrity (protected)
-  async addFavorite(fanId: string, celebrityId: string): Promise<Fan> {
-    return apiRequest<Fan>(`/fans/${fanId}/favorites/${celebrityId}`, {
+  // Get fan's followed celebrities
+  getFollowedCelebrities: async (): Promise<Celebrity[]> => {
+    return apiRequest<Celebrity[]>('/api/fans/following'); // ✅ Add /api prefix
+  },
+
+  // Follow a celebrity
+  followCelebrity: async (celebrityId: string): Promise<{ success: boolean }> => {
+    return apiRequest<{ success: boolean }>('/api/fans/follow', { // ✅ Add /api prefix
       method: 'POST',
+      body: JSON.stringify({ celebrityId }),
     });
   },
 
-  // Remove favorite celebrity (protected)
-  async removeFavorite(fanId: string, celebrityId: string): Promise<Fan> {
-    return apiRequest<Fan>(`/fans/${fanId}/favorites/${celebrityId}`, {
-      method: 'DELETE',
+  // Unfollow a celebrity
+  unfollowCelebrity: async (celebrityId: string): Promise<{ success: boolean }> => {
+    return apiRequest<{ success: boolean }>('/api/fans/unfollow', { // ✅ Add /api prefix
+      method: 'POST',
+      body: JSON.stringify({ celebrityId }),
     });
   },
 };
@@ -293,13 +285,13 @@ export const fansApi = {
 // Health check API
 export const healthApi = {
   // Check API health
-  async check(): Promise<{ status: string; uptime: number; timestamp: string }> {
-    return apiRequest<{ status: string; uptime: number; timestamp: string }>('/health');
+  check: async (): Promise<{ status: string; uptime: number; timestamp: string }> => {
+    return apiRequest<{ status: string; uptime: number; timestamp: string }>('/api/health'); // ✅ Add /api prefix
   },
 
   // Get API status
-  async getStatus(): Promise<{ status: string; message: string; timestamp: string; version: string }> {
-    return apiRequest<{ status: string; message: string; timestamp: string; version: string }>('/');
+  getStatus: async (): Promise<{ status: string; message: string; timestamp: string; version: string }> => {
+    return apiRequest<{ status: string; message: string; timestamp: string; version: string }>('/api'); // ✅ Add /api prefix
   },
 };
 
@@ -327,14 +319,37 @@ export const apiUtils = {
   isValidationError(error: unknown): boolean {
     return error instanceof ApiError && error.status === 400;
   },
+
+  // Get auth token
+  getAuthToken: (): string | null => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('celebnetwork_token');
+    }
+    return null;
+  },
+
+  // Get auth headers
+  getAuthHeaders: () => {
+    const token = apiUtils.getAuthToken();
+    return token 
+      ? { 'Authorization': `Bearer ${token}` }
+      : {};
+  },
+
+  // Clear all stored auth data
+  clearAuth: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('celebnetwork_token');
+    }
+  },
 };
 
-// Export all APIs as default
+// Default export with all API modules
 const api = {
   auth: authApi,
   users: usersApi,
-  celebrities: celebritiesApi,
-  fans: fansApi,
+  celebrities: celebrityApi,
+  fans: fansApi, // ✅ Now this will work
   health: healthApi,
   utils: apiUtils,
 };
