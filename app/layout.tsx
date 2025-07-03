@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import Navigation from "@/components/Navigation";
-import Footer from "@/components/Footer";
+import { Inter } from 'next/font/google';
+import { AuthProvider } from '../contexts/AuthContext';
+import './globals.css';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: "CelebNetwork - Connect with Celebrities",
-  description:
-    "Discover and connect with your favorite celebrities from around the world",
+export const metadata = {
+  title: 'CelebNetwork - Connect with Your Favorite Stars',
+  description: 'The ultimate platform to connect fans with celebrities',
 };
 
 export default function RootLayout({
@@ -18,13 +15,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <div className="flex flex-col min-h-screen">
-          <Navigation />
-          <main className="flex-grow relative z-10">{children}</main>
-          <Footer />
-        </div>
+    <html lang="en" className="bg-white">
+      <body className={`${inter.className} bg-white text-gray-900 antialiased`}>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

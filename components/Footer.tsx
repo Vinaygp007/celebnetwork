@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-export default function Footer() {
+export function Footer() {
   return (
     <footer className="bg-gray-900 text-white">
       {/* Main Footer Content */}
@@ -136,6 +136,12 @@ export default function Footer() {
               © 2025 CelebNetwork. All rights reserved.
             </div>
             <div className="flex space-x-4 text-xs">
+              <Link href="/privacy" className="text-gray-400 hover:text-purple-400 transition-colors">
+                Privacy
+              </Link>
+              <Link href="/terms" className="text-gray-400 hover:text-purple-400 transition-colors">
+                Terms
+              </Link>
               <Link href="/cookies" className="text-gray-400 hover:text-purple-400 transition-colors">
                 Cookie Policy
               </Link>

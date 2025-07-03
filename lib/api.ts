@@ -80,13 +80,17 @@ async function apiRequest<T>(
 ): Promise<T> {
   console.log('🔥 Making API request to:', `${API_BASE_URL}${endpoint}`);
   
+  // Fix: Properly type the headers
+  const authHeaders = apiUtils.getAuthHeaders();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...authHeaders,
+    ...(options.headers as Record<string, string>),
+  };
+
   const config: RequestInit = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...apiUtils.getAuthHeaders(),
-      ...options.headers,
-    },
     ...options,
+    headers,
   };
 
   console.log('🔥 Request config:', config);
@@ -122,14 +126,15 @@ export const authApi = {
   login: async (data: { email: string; password: string }): Promise<AuthResponse> => {
     console.log('🔥 Making login request to:', `${API_BASE_URL}/api/auth/login`);
     
-    const result = await apiRequest<AuthResponse>('/api/auth/login', { // ✅ Keep /api prefix
+    const result = await apiRequest<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });
     
-    // Store token consistently
+    // Store token and user data
     if (result.accessToken) {
       localStorage.setItem('celebnetwork_token', result.accessToken);
+      localStorage.setItem('celebnetwork_user', JSON.stringify(result.user)); // ✅ Store user data
     }
 
     return result;
@@ -142,7 +147,7 @@ export const authApi = {
     firstName: string;
     lastName: string;
   }): Promise<AuthResponse> => {
-    const result = await apiRequest<AuthResponse>('/api/auth/register', { // ✅ Keep /api prefix
+    const result = await apiRequest<AuthResponse>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({
         ...data,
@@ -152,6 +157,7 @@ export const authApi = {
     
     if (result.accessToken) {
       localStorage.setItem('celebnetwork_token', result.accessToken);
+      localStorage.setItem('celebnetwork_user', JSON.stringify(result.user)); // ✅ Store user data
     }
 
     return result;
@@ -163,28 +169,79 @@ export const authApi = {
     password: string;
     firstName: string;
     lastName: string;
-    stageName?: string;
-    bio?: string;
-    industries?: string[];
+    phone: string;
+    dateOfBirth: string;
+    country: string;
+    city?: string;
+    stageName: string;
+    bio: string;
+    industries: string[];
+    socialMedia: {
+      instagram?: string;
+      twitter?: string;
+      youtube?: string;
+      tiktok?: string;
+      facebook?: string;
+    };
+    agreeToMarketing: boolean;
   }): Promise<AuthResponse> => {
-    const result = await apiRequest<AuthResponse>('/api/auth/register', { // ✅ Keep /api prefix
+    return apiRequest<AuthResponse>('/api/auth/signup/celebrity', {
       method: 'POST',
-      body: JSON.stringify({
-        ...data,
-        role: 'celebrity',
-      }),
+      body: JSON.stringify(data),
     });
-    
-    if (result.accessToken) {
-      localStorage.setItem('celebnetwork_token', result.accessToken);
-    }
-
-    return result;
   },
 
   // Logout
   logout: async (): Promise<void> => {
+    localStorage.removeItem('celebnetwork_token');
+    localStorage.removeItem('celebnetwork_user'); // ✅ Remove user data
     apiUtils.clearAuth();
+  },
+
+  // Forgot password
+  async forgotPassword(email: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send reset email');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('🔥 Forgot password error:', error);
+      throw error;
+    }
+  },
+
+  // Reset password
+  async resetPassword(token: string, newPassword: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, newPassword }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to reset password');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('🔥 Reset password error:', error);
+      throw error;
+    }
   },
 };
 
@@ -328,8 +385,8 @@ export const apiUtils = {
     return null;
   },
 
-  // Get auth headers
-  getAuthHeaders: () => {
+  // Fix: Update auth headers function with proper typing
+  getAuthHeaders: (): Record<string, string> => {
     const token = apiUtils.getAuthToken();
     return token 
       ? { 'Authorization': `Bearer ${token}` }
@@ -340,6 +397,7 @@ export const apiUtils = {
   clearAuth: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('celebnetwork_token');
+      localStorage.removeItem('celebnetwork_user');
     }
   },
 };
