@@ -1,26 +1,27 @@
-import { Inter } from 'next/font/google';
-import { AuthProvider } from '../contexts/AuthContext';
-import './globals.css';
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+import { AuthProvider } from '../contexts/AuthContext'
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'] })
 
-export const metadata = {
-  title: 'CelebNetwork - Connect with Your Favorite Stars',
-  description: 'The ultimate platform to connect fans with celebrities',
-};
+export const metadata: Metadata = {
+  title: 'CelebNetwork - Connect with Celebrities',
+  description: 'Connect with your favorite celebrities and discover new talent',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="bg-white">
-      <body className={`${inter.className} bg-white text-gray-900 antialiased`}>
+    <html lang="en">
+      <body className={inter.className}>
         <AuthProvider>
           {children}
         </AuthProvider>
       </body>
     </html>
-  );
+  )
 }

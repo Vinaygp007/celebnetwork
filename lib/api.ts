@@ -27,8 +27,8 @@ export interface User {
 }
 
 export interface AuthResponse {
-  accessToken: string;
   user: User;
+  accessToken: string;
 }
 
 export interface Celebrity {
